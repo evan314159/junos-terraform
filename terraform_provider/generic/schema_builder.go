@@ -62,12 +62,26 @@ func BuildSchema(roots []patch.SchemaNode) schema.Schema {
 	return schema.Schema{Attributes: attrs}
 }
 
-func buildAttributes(nodes []patch.SchemaNode) map[string]schema.Attribute {
-	attrs := make(map[string]schema.Attribute, len(nodes))
+// attributeNodes returns the schema nodes that are Terraform attributes, in
+// schema order. The schema builder and the value converters both use it, so
+// they agree on what the resource holds.
+func attributeNodes(nodes []patch.SchemaNode) []patch.SchemaNode {
+	out := make([]patch.SchemaNode, 0, len(nodes))
 	for _, n := range nodes {
 		if n.Name == "" || n.Name == "groups" || n.Name == "apply-groups" {
 			continue
 		}
+		switch n.Type {
+		case "leaf", "leaf-list", "container", "list":
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func buildAttributes(nodes []patch.SchemaNode) map[string]schema.Attribute {
+	attrs := make(map[string]schema.Attribute, len(nodes))
+	for _, n := range attributeNodes(nodes) {
 		key := SanitizeName(n.Name)
 		switch n.Type {
 		case "leaf":
