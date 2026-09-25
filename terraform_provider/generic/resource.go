@@ -20,6 +20,22 @@ type ConfigResource struct {
 	nodes      []patch.SchemaNode
 	tfSchema   schema.Schema
 	schemaJSON string
+	loadErr    error
+}
+
+// NewConfigResourceFromSchema loads the provider's embedded schema (raw or
+// gzipped JSON) and returns the resource. A schema that fails to load or
+// validate is reported when Terraform asks for the resource's schema; without
+// the resource, Terraform would only say the resource type is not supported.
+func NewConfigResourceFromSchema(raw []byte) *ConfigResource {
+	idx, nodes, err := LoadSchema(raw)
+	if err == nil && len(nodes) > 0 {
+		err = ValidateNames(nodes[0].Children, nodes[0].Name)
+	}
+	if err != nil {
+		return &ConfigResource{loadErr: err}
+	}
+	return NewConfigResource(idx, nodes, string(raw))
 }
 
 // NewConfigResource creates a ConfigResource from pre-loaded schema data.
@@ -57,6 +73,10 @@ func (r *ConfigResource) Metadata(_ context.Context, req resource.MetadataReques
 }
 
 func (r *ConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	if r.loadErr != nil {
+		resp.Diagnostics.AddError("Invalid embedded schema", r.loadErr.Error())
+		return
+	}
 	resp.Schema = r.tfSchema
 }
 

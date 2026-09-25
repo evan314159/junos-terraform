@@ -15,6 +15,7 @@ func TestSanitizeName(t *testing.T) {
 		{"802.1x", "802_1x"},
 		{"simple", "simple"},
 		{"a-b.c", "a_b_c"},
+		{"AH_header", "ah_header"},
 	}
 	for _, tt := range tests {
 		if got := SanitizeName(tt.in); got != tt.want {
@@ -142,5 +143,22 @@ func TestBuildSchema_SkipsGroupsAndApplyGroups(t *testing.T) {
 	}
 	if _, ok := s.Attributes["system"]; !ok {
 		t.Fatal("system should be present")
+	}
+}
+
+func TestValidateNames(t *testing.T) {
+	ok := []patch.SchemaNode{{Name: "firewall", Type: "container", Children: []patch.SchemaNode{
+		{Name: "AH_header", Type: "leaf"}, {Name: "ESP_header", Type: "leaf"},
+	}}}
+	if err := ValidateNames(ok, "configuration"); err != nil {
+		t.Fatalf("valid names rejected: %v", err)
+	}
+	collide := []patch.SchemaNode{{Name: "a-b", Type: "leaf"}, {Name: "a_b", Type: "leaf"}}
+	if err := ValidateNames(collide, "configuration"); err == nil {
+		t.Fatal("expected an error for a-b and a_b")
+	}
+	invalid := []patch.SchemaNode{{Name: "system", Type: "container", Children: []patch.SchemaNode{{Name: "802.1x", Type: "leaf"}}}}
+	if err := ValidateNames(invalid, "configuration"); err == nil {
+		t.Fatal("expected an error for a name starting with a digit")
 	}
 }

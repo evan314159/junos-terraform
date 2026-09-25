@@ -38,6 +38,25 @@ def test_jtaf_provider_helpers(tmp_path):
     assert "terraform-provider-junos-qfx/netconf" in (go_dir / "a.go").read_text()
 
 
+def test_jtaf_provider_exclude_schema_paths():
+    mod = _load_script("jtaf-provider", "jtaf_provider_exclude_mod")
+    resources = {"root": {"children": [{"name": "configuration", "children": [
+        {"name": "groups"},
+        {"name": "system", "children": [
+            {"name": "host-name"},
+            {"name": "services", "children": [{"name": "ssh"}, {"name": "web-management"}]},
+        ]},
+    ]}]}}
+    mod.exclude_schema_paths(resources, ["groups", "system/services/web-management"])
+    config = resources["root"]["children"][0]
+    assert [c["name"] for c in config["children"]] == ["system"]
+    services = config["children"][0]["children"][1]
+    assert [c["name"] for c in services["children"]] == ["ssh"]
+    for bad in ["no-such-section", "system/no-such/ssh", "/"]:
+        with pytest.raises(ValueError):
+            mod.exclude_schema_paths(resources, [bad])
+
+
 def test_jtaf_provider_main_smoke(tmp_path, monkeypatch):
     mod = _load_script("jtaf-provider", "jtaf_provider_main_mod")
 
