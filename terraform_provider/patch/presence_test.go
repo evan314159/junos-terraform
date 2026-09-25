@@ -5,8 +5,9 @@ import (
 	"testing"
 )
 
-// presenceSchema: bgp group multipath is a presence container, empty in the
-// trimmed schema; bgp and group have children and are not.
+// presenceSchema: bgp group multipath is a presence container, with a child
+// as in the full model; bgp and group are not, and neither is traceoptions,
+// which has no children here.
 const presenceSchema = `{
   "path": "",
   "root": {"children": [{"name": "configuration", "type": "container", "path": "", "children": [
@@ -15,7 +16,10 @@ const presenceSchema = `{
         {"name": "group", "type": "list", "key": "name", "path": "protocols/bgp", "children": [
           {"name": "name", "type": "leaf", "path": "protocols/bgp/group", "leaf-type": "string"},
           {"name": "type", "type": "leaf", "path": "protocols/bgp/group", "leaf-type": "string"},
-          {"name": "multipath", "type": "container", "path": "protocols/bgp/group"}
+          {"name": "multipath", "type": "container", "presence": "enable multipath", "path": "protocols/bgp/group", "children": [
+            {"name": "multiple-as", "type": "leaf", "path": "protocols/bgp/group/multipath", "leaf-type": "empty"}
+          ]},
+          {"name": "traceoptions", "type": "container", "path": "protocols/bgp/group"}
         ]}
       ]}
     ]}
@@ -80,5 +84,14 @@ func TestEmptyStructuralContainerNotPresence(t *testing.T) {
 	}
 	if strings.Contains(patch, `operation="delete"`) {
 		t.Fatalf("patch deletes something:\n%s", patch)
+	}
+}
+
+// A container without presence is not diffed when empty, even with no
+// children in the schema.
+func TestEmptyNonPresenceContainerNotDiffed(t *testing.T) {
+	withTrace := `<configuration><protocols><bgp><group><name>g</name><type>external</type><traceoptions/></group></bgp></protocols></configuration>`
+	if diff, _ := presenceDiff(t, groupWithout, withTrace); len(diff) != 0 {
+		t.Fatalf("expected no diff, got %v", diff)
 	}
 }
