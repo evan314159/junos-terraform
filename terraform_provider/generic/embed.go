@@ -48,8 +48,8 @@ func LoadSchema(raw []byte) (map[string]*patch.NodeInfo, []patch.SchemaNode, err
 			return
 		}
 
-		schemaNodes = w.Root.Children
-		schemaIndex, schemaErr = patch.UnmarshalTrimmedSchemaIndex(string(data))
+		schemaNodes = patch.FlattenChoices(w.Root.Children)
+		schemaIndex = patch.BuildSchemaIndex(schemaNodes)
 	})
 	return schemaIndex, schemaNodes, schemaErr
 }

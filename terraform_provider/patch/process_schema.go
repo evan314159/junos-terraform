@@ -170,8 +170,29 @@ func UnmarshalTrimmedSchemaIndex(trimmedSchemaJSON string) (map[string]*NodeInfo
 		return nil, err
 	}
 
-	roots := w.Root.Children
+	return BuildSchemaIndex(FlattenChoices(w.Root.Children)), nil
+}
 
+// FlattenChoices replaces every YANG choice and case node with its children.
+// A choice has no element of its own in the XML: a case's nodes appear
+// directly under the choice's parent. The pyang output keeps them, and a
+// schema trimmed to example configuration has them flattened already.
+func FlattenChoices(nodes []SchemaNode) []SchemaNode {
+	out := make([]SchemaNode, 0, len(nodes))
+	for _, n := range nodes {
+		if n.Type == "choice" || n.Type == "case" {
+			out = append(out, FlattenChoices(n.Children)...)
+			continue
+		}
+		n.Children = FlattenChoices(n.Children)
+		out = append(out, n)
+	}
+	return out
+}
+
+// BuildSchemaIndex compiles schema nodes (with choices flattened) into the
+// path index the patch engine uses.
+func BuildSchemaIndex(roots []SchemaNode) map[string]*NodeInfo {
 	idx := make(map[string]*NodeInfo)
 
 	// Walk and compile
@@ -261,7 +282,7 @@ func UnmarshalTrimmedSchemaIndex(trimmedSchemaJSON string) (map[string]*NodeInfo
 		walk(r, "")
 	}
 
-	return idx, nil
+	return idx
 }
 
 // ------------------------- Process Trimmed Schema [END] -------------------------
